@@ -1,0 +1,55 @@
+name: Build ODcheat APK
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find project root
+        id: find_root
+        run: |
+          SETTINGS=$(find . -maxdepth 3 -name "settings.gradle.kts" | head -1)
+          if [ -z "$SETTINGS" ]; then
+            echo "::error::Не найден settings.gradle.kts."
+            find . -maxdepth 3 -type f | sort | head -100
+            exit 1
+          fi
+          PROJECT_ROOT=$(dirname "$SETTINGS")
+          echo "Найден проект в: $PROJECT_ROOT"
+          echo "project_root=$PROJECT_ROOT" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: ${{ steps.find_root.outputs.project_root }}
+        run: gradle --no-daemon :app:assembleDebug --stacktrace
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK=$(find . -name "*.apk" | head -1)
+          echo "APK найден: $APK"
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ODcheat-debug-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          if-no-files-found: error
